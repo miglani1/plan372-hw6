@@ -1,0 +1,97 @@
+
+
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(dplyr)
+library(here)
+```
+```{r}
+#install.packages("here")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+#install.packages("tidycensus")
+
+```
+
+
+
+```{r}
+tree_data = read.csv("TS3_Raw_tree_data.csv")
+```
+
+```{r}
+tree_data$State = sub(".*,\\s*", "", tree_data$City)
+```
+
+```{r}
+state_counts = as.data.frame(table(tree_data$State))
+colnames(state_counts) = c("State", "Sample_Size")
+
+```
+
+```{r}
+#How many records are there in each state?
+print(state_counts, row.names = FALSE)
+
+```
+
+```{r}
+#Filtering data for NC and SC
+nc_sc_data = subset(tree_data, State %in% c("NC", "SC"))
+```
+
+```{r}
+cities = unique(nc_sc_data$City)
+print(cities)
+#Unique cities include Charleston, SC, and Charlotte, NC.
+```
+
+```{r}
+nc_sc_data$Genus = sub(" .*", "", nc_sc_data$ScientificName)
+
+```
+
+```{r}
+genus_avg_crown = tapply(nc_sc_data$AvgCdia, nc_sc_data$Genus, mean, na.rm = TRUE)
+```
+
+```{r}
+largest_crown_size = max(genus_avg_crown, na.rm = TRUE)
+largest_crown_genus = names(genus_avg_crown)[which.max(genus_avg_crown)]
+print(paste("Largest crown genus:", largest_crown_genus, "with size:", largest_crown_size))
+
+```
+```{r}
+#Extra credit - tree age 
+#I found complete.obs online when trying to find a way to ignore empty rows
+genus_avg_age = tapply(nc_sc_data$Age, nc_sc_data$Genus, mean, na.rm = TRUE)
+genus_avg_crown = tapply(nc_sc_data$AvgCdia, nc_sc_data$Genus, mean, na.rm = TRUE)
+correlation = cor(genus_avg_age, genus_avg_crown, use = "complete.obs")
+print(paste("Correlation between age and crown size:", correlation))
+#There is a .408 correlation value between age and crown size. Given the moderately positive correlation, we can determine that genera with older trees typically have larger crown sizes. This relationship is not strong, but it is there. There are likely other factors that affect this relationship. 
+```
+
+```{r}
+#Extra credit 2 - genera recommendation, based on crown growth and shade coverage
+nc_sc_data = nc_sc_data |> 
+  filter(!is.na(Age) & Age > 0) |> 
+  mutate(GrowthRate = AvgCdia..m. / Age)
+genus_growth = nc_sc_data |>
+  group_by(Genus) |>
+  summarize(
+    AvgGrowthRate = mean(GrowthRate, na.rm = TRUE),
+    AvgCrownDia = mean(AvgCdia..m., na.rm = TRUE)
+  ) |>
+  arrange(desc(AvgGrowthRate))
+
+```
+
+```{r}
+best_genus = genus_growth %>% slice_max(order_by = AvgGrowthRate, n = 1)
+print(best_genus)
+# The best genus to grow when considering average growth rate and average crown diameter is Prunus, with an AvgGR of	0.6442658 and an AvgCD of 9.268.
+```
+```
+
